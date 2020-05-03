@@ -139,7 +139,9 @@
 
             $(".translation").style.visibility = "visible";
             $(".translation-link").href = href;
-            $(".query-word").innerHTML = "";
+            $(".query-word").innerHTML = null;
+            $(".explains").innerHTML = null;
+            $(".wfs").innerHTML = null;
 
             var _spelling = document.createElement("span");
             _spelling.innerText = spelling;
@@ -151,7 +153,6 @@
             })
 
             if (explains) {
-                $(".explains").innerHTML = null;
                 addExplains(explains, $(".explains"));
             }
             if (wfs) {
