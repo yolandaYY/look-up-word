@@ -11,28 +11,23 @@
 
 <body>
     <div class="main">
-        <form>
-            <select name="mode" class="mode">
-                <option value="from=Auto&to=Auto">自动</option>
-                <option value="from=en&to=zh-CHS">英 → 中</option>
-                <option value="from=zh-CHS&to=en">中 → 英</option>
-            </select>
-            <input type="text" name="query" class="query" tabindex="1" />
-            <input type="submit" value="查询" class="query-btn" onclick="request(event)" />
-        </form>
-        <div class="translation">
-            <div class="query-word">
-                <span class="spelling"></span>
-                <span class="phonetic-zh"></span>
-                <span class="phonetic-uk"></span>
-                <span class="phonetic-us"></span>
-                <audio class="pronunciation-zh"></audio>
-                <audio class="pronunciation-uk"></audio>
-                <audio class="pronunciation-us"></audio>
+        <div class="translate-bar">
+            <form>
+                <select name="mode" class="mode">
+                    <option value="from=Auto&to=Auto">自动</option>
+                    <option value="from=en&to=zh-CHS">英 → 中</option>
+                    <option value="from=zh-CHS&to=en">中 → 英</option>
+                </select>
+                <input type="text" name="query" class="query" tabindex="1" />
+                <input type="submit" value="查询" class="query-btn" onclick="request(event)" />
+            </form>
+            <div class="translation">
+                <div class="query-word">
+                </div>
+                <ul class="explains"></ul>
+                <div class="wfs"></div>
+                <a class="translation-link">查看详情</a>
             </div>
-            <ul class="explains"></ul>
-            <div class="wfs"></div>
-            <a class="translation-link">查看详情</a>
         </div>
         <div class="history">
             <table>
@@ -51,12 +46,6 @@
     </div>
     <script>
 
-        ["uk", "us", "zh"].forEach((it) => {
-            $(".phonetic-" + it).onclick = function (e) {
-                $(".pronunciation-" + it).play();
-            }
-        });
-
         var localKey = "history-list";
         var history_list = [];
 
@@ -74,17 +63,14 @@
             var copyContent = "| 单词 | 音标 | 词义 |\n| :--: | :--: | :--: |\n"
             history_list.forEach(word => {
                 copyContent += `| ${word.spelling} |`;
-                if (!word["phonetic-uk"] && !word["phonetic-us"]) {
-                    copyContent += word["phonetic-zh"] + " |";
-                } else {
-                    copyContent += word["phonetic-uk"] + "<br/>" + word["phonetic-us"] + " |";
-                }
-                if (word.explains) {
-                    word.explains.forEach(explain => {
-                        copyContent += explain + "<br/>";
-                    });
-                    copyContent += "|";
-                }
+                word.phonetic && word.phonetic.forEach(obj => {
+                    copyContent += obj.write + "<br/>";
+                });
+                copyContent += "|";
+                word.explains && word.explains.forEach(explain => {
+                    copyContent += explain + "<br/>";
+                });
+                copyContent += "|";
                 copyContent += "\n";
             });
 
@@ -127,26 +113,21 @@
 
         function pickTranslate(translateBody) {
             const { webdict, query, basic, speakUrl, translation } = translateBody;
-            var pickObj = { spelling: query, href: webdict.url };
+            var pickObj = { spelling: query, href: webdict.url, phonetic: [] };
 
             if (!basic) {
                 if (translation) {
-                    pickObj["phonetic-zh"] = "/暂无/";
-                    pickObj["pronunciation-zh"] = speakUrl;
+                    pickObj.phonetic.push({ write: " /暂无/ ", speak: speakUrl });
                     pickObj.explains = translation;
                     return pickObj;
                 }
                 return {};
             }
-            if (!basic["uk-phonetic"] && !basic["us-phonetic"]) {
-                pickObj["phonetic-zh"] = `/${basic.phonetic || "暂无"}/`;
-                pickObj["pronunciation-zh"] = speakUrl;
+            if (!basic["uk-speech"] && !basic["us-speech"]) {
+                pickObj.phonetic.push({ write: ` /${basic.phonetic || "暂无"}/ `, speak: speakUrl });
             } else {
-                pickObj["phonetic-uk"] = `英：/${basic["uk-phonetic"]}/`;
-                pickObj["phonetic-us"] = `美：/${basic["us-phonetic"]}/`;
-
-                pickObj["pronunciation-uk"] = basic["uk-speech"];
-                pickObj["pronunciation-us"] = basic["us-speech"];
+                pickObj.phonetic.push({ write: ` 英：/${basic["uk-phonetic"] || "暂无"}/ `, speak: basic["uk-speech"] });
+                pickObj.phonetic.push({ write: ` 美：/${basic["us-phonetic"] || "暂无"}/ `, speak: basic["us-speech"] });
             }
             pickObj.explains = basic.explains;
             pickObj.wfs = basic.wfs;
@@ -154,21 +135,21 @@
         }
 
         function showTranslate(translate) {
-            const { spelling, href, explains, wfs } = translate;
+            const { spelling, href, explains, wfs, phonetic } = translate;
 
             $(".translation").style.visibility = "visible";
             $(".translation-link").href = href;
-            $(".spelling").innerText = spelling;
-            if (!translate["phonetic-uk"] && !translate["phonetic-us"]) {
-                $(".phonetic-zh").innerText = translate["phonetic-zh"];
-                $(".pronunciation-zh").src = translate["pronunciation-zh"];
-            } else {
-                $(".phonetic-uk").innerText = translate["phonetic-uk"];
-                $(".phonetic-us").innerText = translate["phonetic-us"];
+            $(".query-word").innerHTML = "";
 
-                $(".pronunciation-uk").src = translate["pronunciation-uk"];
-                $(".pronunciation-us").src = translate["pronunciation-us"];
-            }
+            var _spelling = document.createElement("span");
+            _spelling.innerText = spelling;
+            _spelling.className = "spelling";
+            $(".query-word").appendChild(_spelling);
+
+            phonetic.forEach(obj => {
+                $(".query-word").appendChild(createPhoneticElement(obj.write, obj.speak, "span"));
+            })
+
             if (explains) {
                 $(".explains").innerHTML = null;
                 addExplains(explains, $(".explains"));
@@ -180,8 +161,8 @@
             }
         }
 
-        function addPhonetic(phonetic, pronunciation) {
-            var phoneticElement = document.createElement("div");
+        function createPhoneticElement(phonetic, pronunciation, type = "div") {
+            var phoneticElement = document.createElement(type);
             var pronunciationElement = document.createElement("audio");
             phoneticElement.innerText = phonetic ? phonetic : "暂无";
             phoneticElement.className = "phonetic";
@@ -209,12 +190,11 @@
             explains.appendChild(explains_ul);
 
             _spelling.innerText = spelling;
-            if (!translate["phonetic-uk"] && !translate["phonetic-us"]) {
-                phonetic.appendChild(addPhonetic(translate["phonetic-zh"], translate["pronunciation-zh"]));
-            } else {
-                phonetic.appendChild(addPhonetic(translate["phonetic-uk"], translate["pronunciation-uk"]));
-                phonetic.appendChild(addPhonetic(translate["phonetic-us"], translate["pronunciation-us"]));
-            }
+
+            translate.phonetic && translate.phonetic.forEach(obj => {
+                phonetic.appendChild(createPhoneticElement(obj.write, obj.speak));
+            })
+
             if (translate.explains) {
                 addExplains(translate.explains, explains_ul);
             }
