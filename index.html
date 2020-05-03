@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>look up world 👀</title>
     <link rel="stylesheet" href="./index.css">
-    <script src="./test.js"></script>
+    <!-- <script src="./test.js"></script> -->
 </head>
 
 <body>
@@ -40,7 +40,7 @@
                     <tr>
                         <th colspan="4">
                             <span class="history-title">暂无查词历史</span>
-                            <span class="copy" onclick="copyHistoryList()">复制</span>
+                            <span class="copy" onclick="copyHistoryList(event)">复制</span>
                         </th>
                     </tr>
                 </thead>
@@ -87,15 +87,17 @@
                 }
                 copyContent += "\n";
             });
-            navigator.clipboard.writeText(copyContent).then((success) => {
-                $(".copy").innerText = "复制成功👌";
-            }, (fail) => {
-                $(".copy").innerText = "复制失败❌";
-            }).finally(() => {
-                window.setTimeout(() => {
-                    $(".copy").innerText = "复制";
-                }, 1.5 * 1000);
-            });
+
+            var input = document.createElement("textarea");
+            document.body.appendChild(input);
+            input.value = copyContent;
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            $(".copy").innerText = "复制成功👌";
+            window.setTimeout(() => {
+                $(".copy").innerText = "复制";
+            }, 1.5 * 1000);
         }
 
         function updateHistoryList() {
@@ -124,11 +126,18 @@
         }
 
         function pickTranslate(translateBody) {
-            const { webdict, query, basic, speakUrl } = translateBody;
+            const { webdict, query, basic, speakUrl, translation } = translateBody;
+            var pickObj = { spelling: query, href: webdict.url };
+
             if (!basic) {
+                if (translation) {
+                    pickObj["phonetic-zh"] = "/暂无/";
+                    pickObj["pronunciation-zh"] = speakUrl;
+                    pickObj.explains = translation;
+                    return pickObj;
+                }
                 return {};
             }
-            var pickObj = { spelling: query, href: webdict.url };
             if (!basic["uk-phonetic"] && !basic["us-phonetic"]) {
                 pickObj["phonetic-zh"] = `/${basic.phonetic || "暂无"}/`;
                 pickObj["pronunciation-zh"] = speakUrl;
@@ -186,12 +195,8 @@
 
         function addHistory(translate) {
             const { spelling, href, wfs } = translate;
-            if ($("#" + spelling)) {
-                window.location.hash = "#" + spelling;
-                return;
-            }
             var tr = document.createElement("tr");
-            tr.id = spelling;
+            tr.id = spelling.replace(/\s/g, "-");
             var _spelling = document.createElement("td");
             var phonetic = document.createElement("td");
             var explains = document.createElement("td");
@@ -236,12 +241,18 @@
                 return res.json();
             }).then(responseBody => {
                 console.log(responseBody);
-                if (responseBody.basic) {
+                if (responseBody.basic || responseBody.translation) {
                     var translate = pickTranslate(responseBody);
                     showTranslate(translate);
-                    addHistory(translate);
-                    history_list.push(translate);
-                    updateHistoryList();
+                    const id = responseBody.query.replace(/\s/g, "-");
+                    if ($("#" + id)) {
+                        window.location.hash = "#" + id;
+                        return;
+                    } else {
+                        addHistory(translate);
+                        history_list.push(translate);
+                        updateHistoryList();
+                    }
                     $(".history-title").innerText = "查词历史";
                     getByName("query").style.borderColor = "unset";
                 } else {
